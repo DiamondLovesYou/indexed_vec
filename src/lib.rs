@@ -372,6 +372,9 @@ impl<I, T> IndexVec<I, T>
       Some(I::new(self.len() - 1))
     }
   }
+  pub fn next_idx(&self) -> I {
+    I::new(self.len())
+  }
   pub fn shrink_to_fit(&mut self) { self.vec.shrink_to_fit() }
   pub fn swap(&mut self, l: I, r: I) { self.vec.swap(l.index(), r.index()) }
   pub fn truncate(&mut self, s: usize) { self.vec.truncate(s) }
@@ -391,7 +394,16 @@ impl<I, T> IndexVec<I, T>
       .map_err(I::new)
   }
   pub fn push(&mut self, d: T) -> I {
-    let idx = I::new(self.len());
+    let idx = self.next_idx();
+    self.vec.push(d);
+    idx
+  }
+
+  pub fn push_with_idx<F>(&mut self, f: F) -> I
+    where F: FnOnce(I) -> T,
+  {
+    let idx = self.next_idx();
+    let d = f(idx);
     self.vec.push(d);
     idx
   }
