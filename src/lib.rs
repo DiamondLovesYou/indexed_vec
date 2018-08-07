@@ -381,6 +381,17 @@ impl<I, T> IndexVec<I, T>
   pub fn get(&self, i: I) -> Option<&T> { self.vec.get(i.index()) }
   pub fn get_mut(&mut self, i: I) -> Option<&mut T> { self.vec.get_mut(i.index()) }
 
+  pub fn last(&self) -> Option<&T> {
+    self.vec.last()
+  }
+  pub fn last_mut(&mut self) -> Option<&mut T> {
+    self.vec.last_mut()
+  }
+
+  pub fn reserve(&mut self, s: usize) {
+    self.vec.reserve(s);
+  }
+
   pub fn resize(&mut self, s: usize, v: T)
     where T: Clone,
   {
