@@ -183,7 +183,7 @@ macro_rules! newtype_index {
                    derive [$($derives:ident,)+]
                    $($tokens:tt)*) => (
         newtype_index!(
-            @derives      [$($derives,)+ RustcDecodable, RustcEncodable,]
+            @derives      [$($derives,)+ Serialize, Deserialize,]
             @pub          [$($pub)*]
             @type         [$type]
             @max          [$max]
@@ -215,7 +215,7 @@ macro_rules! newtype_index {
      @debug_format [$debug_format:tt]
                    $($tokens:tt)*) => (
         newtype_index!(
-            @derives      [RustcDecodable, RustcEncodable,]
+            @derives      [Serialize, Deserialize,]
             @pub          [$($pub)*]
             @type         [$type]
             @max          [$max]
