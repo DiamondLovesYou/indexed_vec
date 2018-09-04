@@ -11,8 +11,6 @@
 #![feature(unboxed_closures, fn_traits)]
 
 #[cfg(feature = "serial")]
-#[macro_use] extern crate serde_derive;
-#[cfg(feature = "serial")]
 extern crate serde;
 
 use std::marker::PhantomData;
@@ -318,13 +316,11 @@ pub trait Idx: Copy + Eq + Debug + 'static {
 
 pub type Enumerated<I, IT> = Map<Enumerate<IT>, IntoIdx<I>>;
 
-#[cfg_attr(feature = "serial", derive(Deserialize, Serialize))]
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct IndexVec<I, T>
   where I: Idx,
 {
   vec: Vec<T>,
-  #[cfg_attr(feature = "serial", serde(skip))]
   _marker: PhantomData<Fn(&I)>,
 }
 
@@ -391,6 +387,8 @@ impl<I, T> IndexVec<I, T>
   pub fn reserve(&mut self, s: usize) {
     self.vec.reserve(s);
   }
+
+  pub fn clear(&mut self) { self.vec.clear(); }
 
   pub fn resize(&mut self, s: usize, v: T)
     where T: Clone,
@@ -544,5 +542,104 @@ impl<I> FnMut<(usize,)> for IntoIdx<I>
 {
   extern "rust-call" fn call_mut(&mut self, (n,): (usize,)) -> Self::Output {
     I::new(n)
+  }
+}
+
+#[cfg(feature = "serial")]
+impl<I, T> serde::Serialize for IndexVec<I, T>
+  where I: Idx,
+        T: serde::Serialize,
+{
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: serde::Serializer,
+  {
+    use serde::ser::SerializeSeq;
+
+    let mut seq = serializer.serialize_seq(Some(self.len()))?;
+    for e in self.iter() {
+      seq.serialize_element(e)?;
+    }
+    seq.end()
+  }
+}
+#[cfg(feature = "serial")]
+impl<'de, I, T> serde::Deserialize<'de> for IndexVec<I, T>
+  where I: Idx,
+        T: serde::Deserialize<'de>,
+{
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: serde::Deserializer<'de>,
+  {
+    use serde::de::{Visitor, SeqAccess, };
+
+    struct SeqVisitor<InnerT, InnerI> {
+      _a: PhantomData<InnerI>,
+      _b: PhantomData<InnerT>,
+    }
+
+    impl<'de, InnerI, InnerT> Visitor<'de> for SeqVisitor<InnerI, InnerT>
+      where InnerI: Idx,
+            InnerT: serde::Deserialize<'de>,
+    {
+      type Value = IndexVec<InnerI, InnerT>;
+
+      fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a sequence")
+      }
+
+      fn visit_seq<A>(self, mut access: A) -> Result<Self::Value, A::Error>
+        where A: SeqAccess<'de>,
+      {
+        let mut out = IndexVec::with_capacity(access.size_hint().unwrap_or_default());
+
+        while let Some(e) = access.next_element()? {
+          out.push(e);
+        }
+
+        Ok(out)
+      }
+    }
+
+    deserializer.deserialize_seq(SeqVisitor {
+      _a: PhantomData,
+      _b: PhantomData,
+    })
+  }
+  fn deserialize_in_place<D>(deserializer: D, place: &mut Self)
+    -> Result<(), D::Error>
+    where D: serde::Deserializer<'de>,
+  {
+    use serde::de::{Visitor, SeqAccess, };
+
+    struct SeqVisitor<'a, InnerI, InnerT>(&'a mut IndexVec<InnerI, InnerT>)
+      where InnerI: Idx + 'a,
+            InnerT: 'a;
+
+    impl<'a, 'de, InnerI, InnerT> Visitor<'de> for SeqVisitor<'a, InnerI, InnerT>
+      where InnerI: Idx + 'a,
+            InnerT: serde::Deserialize<'de> + 'a,
+    {
+      type Value = ();
+
+      fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a sequence")
+      }
+
+      fn visit_seq<A>(mut self, mut access: A) -> Result<Self::Value, A::Error>
+        where A: SeqAccess<'de>,
+      {
+        let out = &mut self.0;
+        out.clear();
+        out.reserve(access.size_hint().unwrap_or_default());
+
+        while let Some(e) = access.next_element()? {
+          out.push(e);
+        }
+
+        Ok(())
+      }
+    }
+
+    deserializer.deserialize_seq(SeqVisitor(place))
   }
 }
