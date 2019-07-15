@@ -1,10 +1,11 @@
 [package]
 authors = ["Richard Diamond <wichard@vitalitystudios.com>"]
 name = "indexed_vec"
-version = "1.1.1"
-license = "MPL-2.0"
+version = "1.1.2"
+license = "MIT / Apache-2.0"
 repository = "https://github.com/DiamondLovesYou/indexed_vec"
 description = "`IndexVec` from `librustc_data_structures`"
+edition = "2018"
 
 [dependencies.serde]
 optional = true

@@ -27,7 +27,7 @@ macro_rules! newtype_index {
 
     // Use default constants
     ($name:ident) => (
-        newtype_index!(
+        $crate::newtype_index!(
             // Leave out derives marker so we can use its absence to ensure it comes first
             @type         [$name]
             @max          [::std::u32::MAX]
@@ -36,7 +36,7 @@ macro_rules! newtype_index {
 
     // Define any constants
     ($name:ident { $($tokens:tt)+ }) => (
-        newtype_index!(
+        $crate::newtype_index!(
             // Leave out derives marker so we can use its absence to ensure it comes first
             @type         [$name]
             @max          [::std::u32::MAX]
@@ -55,7 +55,7 @@ macro_rules! newtype_index {
         #[derive(Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, $($derives),*)]
         pub struct $type($($pub)* u32);
 
-        impl Idx for $type {
+        impl $crate::Idx for $type {
             #[inline]
             fn new(value: usize) -> Self {
                 assert!(value < ($max) as usize);
@@ -68,7 +68,7 @@ macro_rules! newtype_index {
             }
         }
 
-        newtype_index!(
+        $crate::newtype_index!(
             @handle_debug
             @derives      [$($derives,)*]
             @type         [$type]
@@ -104,7 +104,7 @@ macro_rules! newtype_index {
      @derives      [$_derive:ident, $($derives:ident,)*]
      @type         [$type:ident]
      @debug_format [$debug_format:tt]) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @handle_debug
             @derives      [$($derives,)*]
             @type         [$type]
@@ -117,7 +117,7 @@ macro_rules! newtype_index {
      @debug_format [$debug_format:tt]
                    pub idx
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @pub          [pub]
             @type         [$type]
             @max          [$max]
@@ -130,7 +130,7 @@ macro_rules! newtype_index {
      @max          [$max:expr]
      @debug_format [$debug_format:tt]
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @pub          []
             @type         [$type]
             @max          [$max]
@@ -145,7 +145,7 @@ macro_rules! newtype_index {
      @debug_format [$debug_format:tt]
                    derive [$($derives:ident),*]
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @pub          [$($pub)*]
             @type         [$type]
             @max          [$max]
@@ -163,7 +163,7 @@ macro_rules! newtype_index {
                    derive [$($derives:ident,)+]
                    ENCODABLE = custom
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      [$($derives,)+]
             @pub          [$($pub)*]
             @type         [$type]
@@ -180,7 +180,7 @@ macro_rules! newtype_index {
      @debug_format [$debug_format:tt]
                    derive [$($derives:ident,)+]
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      [$($derives,)+ Serialize, Deserialize,]
             @pub          [$($pub)*]
             @type         [$type]
@@ -197,7 +197,7 @@ macro_rules! newtype_index {
      @debug_format [$debug_format:tt]
                    ENCODABLE = custom
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      []
             @pub          [$($pub)*]
             @type         [$type]
@@ -212,7 +212,7 @@ macro_rules! newtype_index {
      @max          [$max:expr]
      @debug_format [$debug_format:tt]
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      [Serialize, Deserialize,]
             @pub          [$($pub)*]
             @type         [$type]
@@ -228,7 +228,7 @@ macro_rules! newtype_index {
      @max          [$max:expr]
      @debug_format [$debug_format:tt]
                    $name:ident = $constant:expr) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      [$($derives,)*]
             @pub          [$($pub)*]
             @type         [$type]
@@ -245,7 +245,7 @@ macro_rules! newtype_index {
      @debug_format [$debug_format:tt]
                    $(#[doc = $doc:expr])*
                    const $name:ident = $constant:expr) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      [$($derives,)*]
             @pub          [$($pub)*]
             @type         [$type]
@@ -262,7 +262,7 @@ macro_rules! newtype_index {
      @debug_format [$debug_format:tt]
                    MAX = $max:expr,
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      [$($derives,)*]
             @pub          [$($pub)*]
             @type         [$type]
@@ -279,7 +279,7 @@ macro_rules! newtype_index {
      @debug_format [$_debug_format:tt]
                    DEBUG_FORMAT = $debug_format:tt,
                    $($tokens:tt)*) => (
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      [$($derives,)*]
             @pub          [$($pub)*]
             @type         [$type]
@@ -299,7 +299,7 @@ macro_rules! newtype_index {
                    $($tokens:tt)*) => (
         $(#[doc = $doc])*
         pub const $name: $type = $type($constant);
-        newtype_index!(
+        $crate::newtype_index!(
             @derives      [$($derives,)*]
             @pub          [$($pub)*]
             @type         [$type]
@@ -321,7 +321,7 @@ pub struct IndexVec<I, T>
   where I: Idx,
 {
   vec: Vec<T>,
-  _marker: PhantomData<Fn(&I)>,
+  _marker: PhantomData<dyn Fn(&I)>,
 }
 
 impl<I, T> IndexVec<I, T>
@@ -503,7 +503,7 @@ impl<I, T> Debug for IndexVec<I, T>
   }
 }
 
-pub struct IntoIdx<I>(PhantomData<Fn(&I)>)
+pub struct IntoIdx<I>(PhantomData<dyn Fn(&I)>)
   where I: Idx;
 impl<I> Default for IntoIdx<I>
   where I: Idx,
