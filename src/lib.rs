@@ -8,8 +8,6 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![feature(unboxed_closures, fn_traits)]
-
 #[cfg(feature = "serial")]
 extern crate serde;
 
@@ -314,7 +312,7 @@ pub trait Idx: Copy + Eq + Debug + 'static {
   fn index(self) -> usize;
 }
 
-pub type Enumerated<I, IT> = Map<Enumerate<IT>, IntoIdx<I>>;
+pub type Enumerated<I, IT> = Map<Enumerate<IT>, IntoIdxV<I, <IT as Iterator>::Item>>;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct IndexVec<I, T>
@@ -354,13 +352,19 @@ impl<I, T> IndexVec<I, T>
   pub fn is_empty(&self) -> bool { self.vec.is_empty() }
   pub fn into_iter(self) -> IntoIter<T> { self.vec.into_iter() }
   pub fn into_iter_enumerated(self) -> Enumerated<I, IntoIter<T>> {
-    self.vec.into_iter().enumerate().map(Default::default())
+    self.vec.into_iter().enumerate().map(into_idx_v)
   }
   pub fn iter(&self) -> Iter<T> { self.vec.iter() }
   pub fn iter_mut(&mut self) -> IterMut<T> { self.vec.iter_mut() }
-  pub fn iter_enumerated(&self) -> Enumerated<I, Iter<T>> { self.vec.iter().enumerate().map(Default::default()) }
-  pub fn iter_enumerated_mut(&mut self) -> Enumerated<I, IterMut<T>> { self.vec.iter_mut().enumerate().map(Default::default()) }
-  pub fn indices(&self) -> Map<Range<usize>, IntoIdx<I>> { (0..self.len()).map(Default::default()) }
+  pub fn iter_enumerated(&self) -> Enumerated<I, Iter<T>> {
+    self.vec.iter().enumerate().map(into_idx_v)
+  }
+  pub fn iter_enumerated_mut(&mut self) -> Enumerated<I, IterMut<T>> {
+    self.vec.iter_mut().enumerate().map(into_idx_v)
+  }
+  pub fn indices(&self) -> Map<Range<usize>, IntoIdx<I>> {
+    (0..self.len()).map(|i| I::new(i) )
+  }
   pub fn last_idx(&self) -> Option<I> {
     if self.is_empty() {
       None
@@ -503,46 +507,18 @@ impl<I, T> Debug for IndexVec<I, T>
   }
 }
 
-pub struct IntoIdx<I>(PhantomData<dyn Fn(&I)>)
-  where I: Idx;
-impl<I> Default for IntoIdx<I>
-  where I: Idx,
-{
-  fn default() -> Self {
-    IntoIdx(PhantomData)
-  }
-}
-impl<I, T> FnOnce<((usize, T),)> for IntoIdx<I>
-  where I: Idx,
-{
-  type Output = (I, T);
+pub type IntoIdxV<I, T> = fn((usize, T, )) -> (I, T);
+pub type IntoIdx<I> = fn(usize) -> I;
 
-  extern "rust-call" fn call_once(self, ((n, t),): ((usize, T),)) -> Self::Output {
-    (I::new(n), t)
-  }
-}
-impl<I, T> FnMut<((usize, T),)> for IntoIdx<I>
+pub fn into_idx_v<I, T>((n, t, ): (usize, T)) -> (I, T)
   where I: Idx,
 {
-  extern "rust-call" fn call_mut(&mut self, ((n, t),): ((usize, T),)) -> Self::Output {
-    (I::new(n), t)
-  }
+  (I::new(n), t)
 }
-impl<I> FnOnce<(usize,)> for IntoIdx<I>
+pub fn into_idx<I>(n: usize) -> I
   where I: Idx,
 {
-  type Output = I;
-
-  extern "rust-call" fn call_once(self, (n,): (usize,)) -> Self::Output {
-    I::new(n)
-  }
-}
-impl<I> FnMut<(usize,)> for IntoIdx<I>
-  where I: Idx,
-{
-  extern "rust-call" fn call_mut(&mut self, (n,): (usize,)) -> Self::Output {
-    I::new(n)
-  }
+  I::new(n)
 }
 
 #[cfg(feature = "serial")]
