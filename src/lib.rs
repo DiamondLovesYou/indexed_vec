@@ -45,7 +45,7 @@ macro_rules! newtype_index {
     // ---- private rules ----
 
     // Base case, user-defined constants (if any) have already been defined
-    (@derives      [$($derives:ident,)*]
+    (@derives      [$($derives:path,)*]
      @pub          [$($pub:tt)*]
      @type         [$type:ident]
      @max          [$max:expr]
@@ -75,7 +75,7 @@ macro_rules! newtype_index {
 
     // base case for handle_debug where format is custom. No Debug implementation is emitted.
     (@handle_debug
-     @derives      [$($_derives:ident,)*]
+     @derives      [$($_derives:path,)*]
      @type         [$type:ident]
      @debug_format [custom]) => ();
 
@@ -93,13 +93,13 @@ macro_rules! newtype_index {
 
     // Debug is requested for derive, don't generate any Debug implementation.
     (@handle_debug
-     @derives      [Debug, $($derives:ident,)*]
+     @derives      [Debug, $($derives:path,)*]
      @type         [$type:ident]
      @debug_format [$debug_format:tt]) => ();
 
     // It's not Debug, so just pop it off the front of the derives stack and check the rest.
     (@handle_debug
-     @derives      [$_derive:ident, $($derives:ident,)*]
+     @derives      [$_derive:path, $($derives:path,)*]
      @type         [$type:ident]
      @debug_format [$debug_format:tt]) => (
         $crate::newtype_index!(
@@ -141,7 +141,7 @@ macro_rules! newtype_index {
      @type         [$type:ident]
      @max          [$max:expr]
      @debug_format [$debug_format:tt]
-                   derive [$($derives:ident),*]
+                   derive [$($derives:path),*]
                    $($tokens:tt)*) => (
         $crate::newtype_index!(
             @pub          [$($pub)*]
@@ -158,7 +158,7 @@ macro_rules! newtype_index {
      @type         [$type:ident]
      @max          [$max:expr]
      @debug_format [$debug_format:tt]
-                   derive [$($derives:ident,)+]
+                   derive [$($derives:path,)+]
                    ENCODABLE = custom
                    $($tokens:tt)*) => (
         $crate::newtype_index!(
@@ -176,10 +176,20 @@ macro_rules! newtype_index {
      @type         [$type:ident]
      @max          [$max:expr]
      @debug_format [$debug_format:tt]
-                   derive [$($derives:ident,)+]
+                   derive [$($derives:path,)+]
                    $($tokens:tt)*) => (
+        #[cfg(feature = "serde")]
         $crate::newtype_index!(
             @derives      [$($derives,)+ Serialize, Deserialize,]
+            @pub          [$($pub)*]
+            @type         [$type]
+            @max          [$max]
+            @debug_format [$debug_format]
+                          $($tokens)*);
+
+        #[cfg(not(feature = "serde"))]
+        $crate::newtype_index!(
+            @derives      [$($derives,)+ ]
             @pub          [$($pub)*]
             @type         [$type]
             @max          [$max]
@@ -210,8 +220,18 @@ macro_rules! newtype_index {
      @max          [$max:expr]
      @debug_format [$debug_format:tt]
                    $($tokens:tt)*) => (
+        #[cfg(feature = "serde")]
         $crate::newtype_index!(
-            @derives      [Serialize, Deserialize,]
+            @derives      [::serde::Serialize, ::serde::Deserialize,]
+            @pub          [$($pub)*]
+            @type         [$type]
+            @max          [$max]
+            @debug_format [$debug_format]
+                          $($tokens)*);
+
+        #[cfg(not(feature = "serde"))]
+        $crate::newtype_index!(
+            @derives      []
             @pub          [$($pub)*]
             @type         [$type]
             @max          [$max]
@@ -220,7 +240,7 @@ macro_rules! newtype_index {
     );
 
     // Rewrite final without comma to one that includes comma
-    (@derives      [$($derives:ident,)*]
+    (@derives      [$($derives:path,)*]
      @pub          [$($pub:tt)*]
      @type         [$type:ident]
      @max          [$max:expr]
@@ -236,7 +256,7 @@ macro_rules! newtype_index {
     );
 
     // Rewrite final const without comma to one that includes comma
-    (@derives      [$($derives:ident,)*]
+    (@derives      [$($derives:path,)*]
      @pub          [$($pub:tt)*]
      @type         [$type:ident]
      @max          [$_max:expr]
@@ -253,7 +273,7 @@ macro_rules! newtype_index {
     );
 
     // Replace existing default for max
-    (@derives      [$($derives:ident,)*]
+    (@derives      [$($derives:path,)*]
      @pub          [$($pub:tt)*]
      @type         [$type:ident]
      @max          [$_max:expr]
@@ -270,7 +290,7 @@ macro_rules! newtype_index {
     );
 
     // Replace existing default for debug_format
-    (@derives      [$($derives:ident,)*]
+    (@derives      [$($derives:path,)*]
      @pub          [$($pub:tt)*]
      @type         [$type:ident]
      @max          [$max:expr]
@@ -287,7 +307,7 @@ macro_rules! newtype_index {
     );
 
     // Assign a user-defined constant
-    (@derives      [$($derives:ident,)*]
+    (@derives      [$($derives:path,)*]
      @pub          [$($pub:tt)*]
      @type         [$type:ident]
      @max          [$max:expr]
@@ -319,7 +339,7 @@ pub struct IndexVec<I, T>
   where I: Idx,
 {
   vec: Vec<T>,
-  _marker: PhantomData<dyn Fn(&I)>,
+  _marker: PhantomData<dyn Fn(&I) + Send + Sync + 'static>,
 }
 
 impl<I, T> IndexVec<I, T>
@@ -617,5 +637,28 @@ impl<'de, I, T> serde::Deserialize<'de> for IndexVec<I, T>
     }
 
     deserializer.deserialize_seq(SeqVisitor(place))
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  newtype_index!(T);
+  #[test]
+  fn ensure_send() {
+    let i: IndexVec<T, usize> = IndexVec::default();
+
+    fn force_send<T>(_: T) where T: Send { }
+
+    force_send(i);
+  }
+  #[test]
+  fn ensure_sync() {
+    let i: IndexVec<T, usize> = IndexVec::default();
+
+    fn force_sync<T>(_: T) where T: Sync { }
+
+    force_sync(i);
   }
 }
